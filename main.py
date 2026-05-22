@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Depends, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import Base, engine, SessionLocal
 from models import FiscalRisk
 from odoo_saas import router as odoo_saas_router
-from sat_sync import router as sat_sync_router
 
 import csv
 import io
@@ -18,7 +18,6 @@ app = FastAPI(
 )
 
 app.include_router(odoo_saas_router)
-app.include_router(sat_sync_router)
 
 def get_db():
     db = SessionLocal()
@@ -99,6 +98,34 @@ def root():
 def health():
     return {
         "status": "ok"
+    }
+
+
+# Onboarding endpoint and request model
+class OnboardingRequest(BaseModel):
+    company_name: str | None = None
+    company_rfc: str
+    sat_ciec: str
+    odoo_url: str
+    odoo_database: str | None = None
+    odoo_login: str
+    odoo_password: str
+    alert_email: str | None = None
+    auto_validate_risk: bool | None = False
+    source: str | None = "odoo_module"
+
+
+@app.post("/api/v1/onboarding/register")
+def register_onboarding(data: OnboardingRequest):
+    clean_rfc = normalize_rfc(data.company_rfc)
+
+    return {
+        "status": "pending",
+        "customer_id": f"RNFS-{clean_rfc}",
+        "message": (
+            "Tu RFC quedó registrado correctamente. "
+            "La sincronización automática iniciará cuando el servicio sea activado."
+        ),
     }
 
 
