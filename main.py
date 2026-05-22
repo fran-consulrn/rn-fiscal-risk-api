@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 
 from database import Base, engine, SessionLocal
 from models import FiscalRisk
+from odoo_saas import router as odoo_saas_router
+from sat_sync import router as sat_sync_router
 
 import csv
 import io
 from datetime import datetime
-
 
 Base.metadata.create_all(bind=engine)
 
@@ -16,6 +17,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
+app.include_router(odoo_saas_router)
+app.include_router(sat_sync_router)
 
 def get_db():
     db = SessionLocal()
