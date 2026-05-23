@@ -314,3 +314,42 @@ async def upload_xml(
     }
 
 app.include_router(odoo_saas_router)
+
+@app.get("/api/v1/xml/documents/{customer_id}")
+def get_xml_documents(
+    customer_id: str,
+    db: Session = Depends(get_db),
+):
+    documents = (
+        db.query(RNFiscalXMLDocument)
+        .filter(RNFiscalXMLDocument.customer_id == customer_id)
+        .order_by(RNFiscalXMLDocument.created_at.desc())
+        .all()
+    )
+
+    return {
+        "success": True,
+        "customer_id": customer_id,
+        "count": len(documents),
+        "documents": [
+            {
+                "id": doc.id,
+                "uuid": doc.uuid,
+                "filename": doc.filename,
+                "supplier_rfc": doc.supplier_rfc,
+                "supplier_name": doc.supplier_name,
+                "receiver_rfc": doc.receiver_rfc,
+                "receiver_name": doc.receiver_name,
+                "folio": doc.folio,
+                "serie": doc.serie,
+                "fecha": doc.fecha,
+                "subtotal": doc.subtotal,
+                "total": doc.total,
+                "currency": doc.currency,
+                "status": doc.status,
+                "message": doc.message,
+                "created_at": doc.created_at,
+            }
+            for doc in documents
+        ],
+    }
