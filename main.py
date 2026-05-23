@@ -353,47 +353,6 @@ def get_xml_documents(
             for doc in documents
         ],
     }
-@app.get("/api/v1/xml/documents/{customer_id}")
-def get_xml_documents(
-    customer_id: str,
-    db: Session = Depends(get_db),
-):
-    documents = (
-        db.query(RNFiscalXMLDocument)
-        .filter(RNFiscalXMLDocument.customer_id == customer_id)
-        .order_by(RNFiscalXMLDocument.id.desc())
-        .all()
-    )
-
-    result = []
-
-    for doc in documents:
-        result.append({
-            "id": doc.id,
-            "uuid": doc.uuid,
-            "filename": doc.filename,
-            "supplier_rfc": doc.supplier_rfc,
-            "supplier_name": doc.supplier_name,
-            "receiver_rfc": doc.receiver_rfc,
-            "receiver_name": doc.receiver_name,
-            "folio": doc.folio,
-            "serie": doc.serie,
-            "fecha": doc.fecha,
-            "subtotal": doc.subtotal,
-            "total": doc.total,
-            "currency": doc.currency,
-            "status": doc.status,
-            "message": doc.message,
-            "created_at": doc.created_at,
-        })
-
-    return {
-        "success": True,
-        "customer_id": customer_id,
-        "count": len(result),
-        "documents": result,
-    }
-
 
 @app.post("/api/v1/xml/send-to-odoo/{xml_id}")
 def send_xml_to_odoo(
@@ -429,7 +388,8 @@ def send_xml_to_odoo(
     try:
 
         common = xmlrpc.client.ServerProxy(
-            f"{client.odoo_url}/xmlrpc/2/common"
+            f"{client.odoo_url}/xmlrpc/2/common",
+            allow_none=True,
         )
 
         uid = common.authenticate(
@@ -446,7 +406,8 @@ def send_xml_to_odoo(
             }
 
         models = xmlrpc.client.ServerProxy(
-            f"{client.odoo_url}/xmlrpc/2/object"
+            f"{client.odoo_url}/xmlrpc/2/object",
+            allow_none=True,
         )
 
         bills = models.execute_kw(
