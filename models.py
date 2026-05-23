@@ -1,51 +1,56 @@
-    from datetime import datetime
-    from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date
+from datetime import datetime
 
-    from database import Base
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date
 
-
-    class FiscalRisk(Base):
-        __tablename__ = "fiscal_risks"
-
-        id = Column(Integer, primary_key=True, index=True)
-
-        rfc = Column(String, unique=True, index=True, nullable=False)
-        name = Column(String)
-        risk_level = Column(String)
-        list_type = Column(String)
-        situation = Column(String)
-        source = Column(String)
-        publication_date = Column(Date, nullable=True)
-        message = Column(String)
+from database import Base
 
 
-    class RNFiscalClient(Base):
-        __tablename__ = "rn_fiscal_clients"
+class FiscalRisk(Base):
+    __tablename__ = "fiscal_risks"
 
-        id = Column(Integer, primary_key=True, index=True)
-        customer_id = Column(String, unique=True, index=True, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
 
-        company_name = Column(String, nullable=True)
-        company_rfc = Column(String, index=True, nullable=False)
+    rfc = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String)
+    risk_level = Column(String)
+    list_type = Column(String)
+    situation = Column(String)
+    source = Column(String)
+    publication_date = Column(Date, nullable=True)
+    message = Column(String)
 
-        odoo_url = Column(String, nullable=False)
-        odoo_database = Column(String, nullable=True)
-        odoo_login = Column(String, nullable=False)
-        odoo_password = Column(String, nullable=False)
 
-        odoo_company_id = Column(Integer, nullable=True)
-        odoo_company_name = Column(String, nullable=True)
+class RNFiscalClient(Base):
+    __tablename__ = "rn_fiscal_clients"
 
-        sat_ciec = Column(String, nullable=False)
-        alert_email = Column(String, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(String, unique=True, index=True, nullable=False)
 
-        auto_validate_risk = Column(Boolean, default=False)
-        sync_enabled = Column(Boolean, default=True)
+    company_name = Column(String, nullable=True)
+    company_rfc = Column(String, index=True, nullable=False)
 
-        onboarding_status = Column(String, default="pending")
-        onboarding_message = Column(String, nullable=True)
+    odoo_url = Column(String, nullable=False)
+    odoo_database = Column(String, nullable=True)
+    odoo_login = Column(String, nullable=False)
+    odoo_password = Column(String, nullable=False)
 
-        source = Column(String, default="odoo_module")
+    odoo_company_id = Column(Integer, nullable=True)
+    odoo_company_name = Column(String, nullable=True)
 
-        created_at = Column(DateTime, default=datetime.utcnow)
-        updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    sat_ciec = Column(String, nullable=False)
+    alert_email = Column(String, nullable=True)
+
+    auto_validate_risk = Column(Boolean, default=False)
+    sync_enabled = Column(Boolean, default=True)
+
+    onboarding_status = Column(String, default="pending")
+    onboarding_message = Column(String, nullable=True)
+
+    source = Column(String, default="odoo_module")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
