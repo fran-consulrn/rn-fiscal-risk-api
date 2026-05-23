@@ -353,3 +353,178 @@ def get_xml_documents(
             for doc in documents
         ],
     }
+@app.get("/api/v1/xml/documents/{customer_id}")
+def get_xml_documents(
+    customer_id: str,
+    db: Session = Depends(get_db),
+):
+    documents = (
+        db.query(RNFiscalXMLDocument)
+        .filter(RNFiscalXMLDocument.customer_id == customer_id)
+        .order_by(RNFiscalXMLDocument.id.desc())
+        .all()
+    )
+
+    result = []
+
+    for doc in documents:
+        result.append({
+            "id": doc.id,
+            "uuid": doc.uuid,
+            "filename": doc.filename,
+            "supplier_rfc": doc.supplier_rfc,
+            "supplier_name": doc.supplier_name,
+            "receiver_rfc": doc.receiver_rfc,
+            "receiver_name": doc.receiver_name,
+            "folio": doc.folio,
+            "serie": doc.serie,
+            "fecha": doc.fecha,
+            "subtotal": doc.subtotal,
+            "total": doc.total,
+            "currency": doc.currency,
+            "status": doc.status,
+            "message": doc.message,
+            "created_at": doc.created_at,
+        })
+
+    return {
+        "success": True,
+        "customer_id": customer_id,
+        "count": len(result),
+        "documents": result,
+    }
+
+
+@app.post("/api/v1/xml/send-to-odoo/{xml_id}")
+def send_xml_to_odoo(
+    xml_id: int,
+    db: Session = Depends(get_db),
+):
+    xml_document = (
+        db.query(RNFiscalXMLDocument)
+        .filter(RNFiscalXMLDocument.id == xml_id)
+        .first()
+    )
+
+    if not xml_document:
+        return {
+            "success": False,
+            "error": "XML document not found.",
+        }
+
+    client = (
+        db.query(RNFiscalClient)
+        .filter(
+            RNFiscalClient.customer_id == xml_document.customer_id
+        )
+        .first()
+    )
+
+    if not client:
+        return {
+            "success": False,
+            "error": "Client not found.",
+        }
+
+    try:
+
+        common = xmlrpc.client.ServerProxy(
+            f"{client.odoo_url}/xmlrpc/2/common"
+        )
+
+        uid = common.authenticate(
+            client.odoo_database,
+            client.odoo_login,
+            client.odoo_password,
+            {}
+        )
+
+        if not uid:
+            return {
+                "success": False,
+                "error": "Odoo authentication failed.",
+            }
+
+        models = xmlrpc.client.ServerProxy(
+            f"{client.odoo_url}/xmlrpc/2/object"
+        )
+
+        bills = models.execute_kw(
+            client.odoo_database,
+            uid,
+            client.odoo_password,
+            "account.move",
+            "search_read",
+            [[
+                ["move_type", "in", ["in_invoice", "in_refund"]],
+                ["state", "!=", "cancel"],
+            ]],
+            {
+                "fields": [
+                    "id",
+                    "name",
+                    "ref",
+                ],
+                "limit": 100,
+                "order": "id desc"
+            }
+        )
+
+        matched_bill = None
+
+        for bill in bills:
+
+            ref = (bill.get("ref") or "").lower()
+
+            if xml_document.uuid in ref:
+                matched_bill = bill
+                break
+
+        if not matched_bill:
+            return {
+                "success": False,
+                "error": "Vendor bill not found in Odoo.",
+            }
+
+        body = (
+            "<strong>✅ RN Fiscal Shield SaaS</strong><br/>"
+            f"XML UUID detectado: {xml_document.uuid}<br/>"
+            f"Proveedor: {xml_document.supplier_name}<br/>"
+            f"RFC: {xml_document.supplier_rfc}<br/>"
+            f"Total: {xml_document.total} {xml_document.currency}"
+        )
+
+        message_id = models.execute_kw(
+            client.odoo_database,
+            uid,
+            client.odoo_password,
+            "account.move",
+            "message_post",
+            [[matched_bill["id"]]],
+            {
+                "body": body,
+                "message_type": "comment",
+                "subtype_xmlid": "mail.mt_note",
+            }
+        )
+
+        xml_document.status = "synced"
+        xml_document.message = "XML synced to Odoo successfully."
+
+        db.commit()
+
+        return {
+            "success": True,
+            "xml_id": xml_document.id,
+            "bill_id": matched_bill["id"],
+            "message_id": message_id,
+            "status": xml_document.status,
+            "message": xml_document.message,
+        }
+
+    except Exception as e:
+
+        return {
+            "success": False,
+            "error": str(e),
+        }
