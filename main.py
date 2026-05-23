@@ -235,7 +235,10 @@ async def upload_xml(
 
     existing = (
         db.query(RNFiscalXMLDocument)
-        .filter(RNFiscalXMLDocument.uuid == clean_uuid)
+        .filter(
+            RNFiscalXMLDocument.uuid == clean_uuid,
+            RNFiscalXMLDocument.customer_id == customer_id,
+        )
         .first()
     )
 
