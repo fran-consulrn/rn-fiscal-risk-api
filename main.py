@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import Base, engine, SessionLocal
-from models import FiscalRisk, RNFiscalClient
+from models import FiscalRisk, RNFiscalClient, RNFiscalXMLDocument
 from odoo_saas import router as odoo_saas_router
 
 import csv
@@ -197,6 +197,7 @@ def register_onboarding(
 async def upload_xml(
     customer_id: str = Form(...),
     file: UploadFile = File(...),
+    db: Session = Depends(get_db),
 ):
     import xml.etree.ElementTree as ET
 
@@ -222,22 +223,94 @@ async def upload_xml(
 
     uuid = timbre.attrib.get("UUID") if timbre is not None else None
 
+    if not uuid:
+        return {
+            "success": False,
+            "customer_id": customer_id,
+            "filename": file.filename,
+            "error": "XML does not contain UUID.",
+        }
+
+    clean_uuid = uuid.lower()
+
+    existing = (
+        db.query(RNFiscalXMLDocument)
+        .filter(RNFiscalXMLDocument.uuid == clean_uuid)
+        .first()
+    )
+
+    if existing:
+        return {
+            "success": True,
+            "duplicate": True,
+            "status": "duplicate",
+            "customer_id": existing.customer_id,
+            "filename": existing.filename,
+            "uuid": existing.uuid,
+            "supplier_rfc": existing.supplier_rfc,
+            "supplier_name": existing.supplier_name,
+            "receiver_rfc": existing.receiver_rfc,
+            "receiver_name": existing.receiver_name,
+            "folio": existing.folio,
+            "serie": existing.serie,
+            "fecha": existing.fecha,
+            "subtotal": existing.subtotal,
+            "total": existing.total,
+            "currency": existing.currency,
+            "message": "XML already exists. Duplicate skipped.",
+        }
+
+    supplier_rfc = emisor.attrib.get("Rfc") if emisor is not None else None
+    supplier_name = emisor.attrib.get("Nombre") if emisor is not None else None
+    receiver_rfc = receptor.attrib.get("Rfc") if receptor is not None else None
+    receiver_name = receptor.attrib.get("Nombre") if receptor is not None else None
+    folio = comprobante.attrib.get("Folio")
+    serie = comprobante.attrib.get("Serie")
+    fecha = comprobante.attrib.get("Fecha")
+    subtotal = comprobante.attrib.get("SubTotal")
+    total = comprobante.attrib.get("Total")
+    currency = comprobante.attrib.get("Moneda")
+
+    xml_document = RNFiscalXMLDocument(
+        customer_id=customer_id,
+        uuid=clean_uuid,
+        filename=file.filename,
+        supplier_rfc=supplier_rfc,
+        supplier_name=supplier_name,
+        receiver_rfc=receiver_rfc,
+        receiver_name=receiver_name,
+        folio=folio,
+        serie=serie,
+        fecha=fecha,
+        subtotal=subtotal,
+        total=total,
+        currency=currency,
+        status="received",
+        message="XML received and parsed successfully.",
+    )
+
+    db.add(xml_document)
+    db.commit()
+    db.refresh(xml_document)
+
     return {
         "success": True,
-        "customer_id": customer_id,
-        "filename": file.filename,
-        "uuid": uuid,
-        "supplier_rfc": emisor.attrib.get("Rfc") if emisor is not None else None,
-        "supplier_name": emisor.attrib.get("Nombre") if emisor is not None else None,
-        "receiver_rfc": receptor.attrib.get("Rfc") if receptor is not None else None,
-        "receiver_name": receptor.attrib.get("Nombre") if receptor is not None else None,
-        "folio": comprobante.attrib.get("Folio"),
-        "serie": comprobante.attrib.get("Serie"),
-        "fecha": comprobante.attrib.get("Fecha"),
-        "subtotal": comprobante.attrib.get("SubTotal"),
-        "total": comprobante.attrib.get("Total"),
-        "currency": comprobante.attrib.get("Moneda"),
-        "message": "XML received and parsed successfully.",
+        "duplicate": False,
+        "status": xml_document.status,
+        "customer_id": xml_document.customer_id,
+        "filename": xml_document.filename,
+        "uuid": xml_document.uuid,
+        "supplier_rfc": xml_document.supplier_rfc,
+        "supplier_name": xml_document.supplier_name,
+        "receiver_rfc": xml_document.receiver_rfc,
+        "receiver_name": xml_document.receiver_name,
+        "folio": xml_document.folio,
+        "serie": xml_document.serie,
+        "fecha": xml_document.fecha,
+        "subtotal": xml_document.subtotal,
+        "total": xml_document.total,
+        "currency": xml_document.currency,
+        "message": xml_document.message,
     }
 
 app.include_router(odoo_saas_router)

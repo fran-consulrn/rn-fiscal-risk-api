@@ -54,3 +54,33 @@ class RNFiscalClient(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+
+
+class RNFiscalXMLDocument(Base):
+    __tablename__ = "rn_fiscal_xml_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    customer_id = Column(String, index=True, nullable=False)
+    uuid = Column(String, unique=True, index=True, nullable=False)
+
+    filename = Column(String, nullable=True)
+
+    supplier_rfc = Column(String, index=True, nullable=True)
+    supplier_name = Column(String, nullable=True)
+
+    receiver_rfc = Column(String, index=True, nullable=True)
+    receiver_name = Column(String, nullable=True)
+
+    folio = Column(String, nullable=True)
+    serie = Column(String, nullable=True)
+    fecha = Column(String, nullable=True)
+
+    subtotal = Column(String, nullable=True)
+    total = Column(String, nullable=True)
+    currency = Column(String, nullable=True)
+
+    status = Column(String, default="received")
+    message = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
