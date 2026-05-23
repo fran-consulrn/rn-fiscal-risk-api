@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, UploadFile, File
+from fastapi import FastAPI, Depends, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -193,5 +193,51 @@ def register_onboarding(
         "message": client.onboarding_message,
     }
 
+@app.post("/api/v1/xml/upload")
+async def upload_xml(
+    customer_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    import xml.etree.ElementTree as ET
+
+    content = await file.read()
+
+    try:
+        root = ET.fromstring(content)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Invalid XML: {str(e)}",
+        }
+
+    namespaces = {
+        "cfdi": "http://www.sat.gob.mx/cfd/4",
+        "tfd": "http://www.sat.gob.mx/TimbreFiscalDigital",
+    }
+
+    comprobante = root
+    emisor = root.find("cfdi:Emisor", namespaces)
+    receptor = root.find("cfdi:Receptor", namespaces)
+    timbre = root.find(".//tfd:TimbreFiscalDigital", namespaces)
+
+    uuid = timbre.attrib.get("UUID") if timbre is not None else None
+
+    return {
+        "success": True,
+        "customer_id": customer_id,
+        "filename": file.filename,
+        "uuid": uuid,
+        "supplier_rfc": emisor.attrib.get("Rfc") if emisor is not None else None,
+        "supplier_name": emisor.attrib.get("Nombre") if emisor is not None else None,
+        "receiver_rfc": receptor.attrib.get("Rfc") if receptor is not None else None,
+        "receiver_name": receptor.attrib.get("Nombre") if receptor is not None else None,
+        "folio": comprobante.attrib.get("Folio"),
+        "serie": comprobante.attrib.get("Serie"),
+        "fecha": comprobante.attrib.get("Fecha"),
+        "subtotal": comprobante.attrib.get("SubTotal"),
+        "total": comprobante.attrib.get("Total"),
+        "currency": comprobante.attrib.get("Moneda"),
+        "message": "XML received and parsed successfully.",
+    }
 
 app.include_router(odoo_saas_router)
