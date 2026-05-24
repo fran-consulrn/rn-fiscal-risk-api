@@ -574,6 +574,25 @@ def send_xml_to_odoo(
                 "ref": bill_ref,
             }
 
+        attachment_id = None
+
+        if xml_document.xml_content_base64:
+            attachment_id = models.execute_kw(
+                client.odoo_database,
+                uid,
+                client.odoo_password,
+                "ir.attachment",
+                "create",
+                [{
+                    "name": xml_document.filename or f"{xml_document.uuid}.xml",
+                    "type": "binary",
+                    "datas": xml_document.xml_content_base64,
+                    "res_model": "account.move",
+                    "res_id": matched_bill["id"],
+                    "mimetype": "application/xml",
+                }],
+            )            
+
         body = (
             "<strong>✅ RN Fiscal Shield SaaS</strong><br/>"
             f"XML UUID detectado: {xml_document.uuid}<br/>"
@@ -582,6 +601,15 @@ def send_xml_to_odoo(
             f"Total: {xml_document.total} {xml_document.currency}"
         )
 
+        message_kwargs = {
+            "body": body,
+            "message_type": "comment",
+            "subtype_xmlid": "mail.mt_note",
+        }
+
+        if attachment_id:
+            message_kwargs["attachment_ids"] = [(4, attachment_id)]
+
         message_id = models.execute_kw(
             client.odoo_database,
             uid,
@@ -589,13 +617,9 @@ def send_xml_to_odoo(
             "account.move",
             "message_post",
             [[matched_bill["id"]]],
-            {
-                "body": body,
-                "message_type": "comment",
-                "subtype_xmlid": "mail.mt_note",
-            },
+            message_kwargs,
         )
-
+        
         xml_document.status = "synced"
         xml_document.message = "XML synced to Odoo successfully."
 
