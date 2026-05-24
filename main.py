@@ -261,6 +261,30 @@ async def upload_xml(
     concepts = []
 
     for concepto in conceptos:
+        concept_taxes = []
+
+        traslados = concepto.findall(".//cfdi:Traslado", namespaces)
+        for traslado in traslados:
+            concept_taxes.append({
+                "tax_type": "traslado",
+                "base": traslado.attrib.get("Base"),
+                "impuesto": traslado.attrib.get("Impuesto"),
+                "tipo_factor": traslado.attrib.get("TipoFactor"),
+                "tasa_cuota": traslado.attrib.get("TasaOCuota"),
+                "importe": traslado.attrib.get("Importe"),
+            })
+
+        retenciones = concepto.findall(".//cfdi:Retencion", namespaces)
+        for retencion in retenciones:
+            concept_taxes.append({
+                "tax_type": "retencion",
+                "base": retencion.attrib.get("Base"),
+                "impuesto": retencion.attrib.get("Impuesto"),
+                "tipo_factor": retencion.attrib.get("TipoFactor"),
+                "tasa_cuota": retencion.attrib.get("TasaOCuota"),
+                "importe": retencion.attrib.get("Importe"),
+            })
+
         concepts.append({
             "clave_prod_serv": concepto.attrib.get("ClaveProdServ"),
             "cantidad": concepto.attrib.get("Cantidad"),
@@ -270,6 +294,7 @@ async def upload_xml(
             "valor_unitario": concepto.attrib.get("ValorUnitario"),
             "importe": concepto.attrib.get("Importe"),
             "objeto_imp": concepto.attrib.get("ObjetoImp"),
+            "taxes": concept_taxes,
         })
 
     concepts_json = json.dumps(concepts, ensure_ascii=False)
@@ -544,13 +569,62 @@ def send_xml_to_odoo(
             concepts = json.loads(xml_document.concepts_json or "[]")
             invoice_lines = []
 
+            def find_purchase_tax_ids(concept):
+                tax_ids = []
+
+                for tax in concept.get("taxes") or []:
+                    if tax.get("tax_type") != "traslado":
+                        continue
+
+                    if tax.get("impuesto") != "002":
+                        continue
+
+                    if tax.get("tipo_factor") != "Tasa":
+                        continue
+
+                    tasa_cuota = tax.get("tasa_cuota")
+                    if not tasa_cuota:
+                        continue
+
+                    try:
+                        tax_amount = round(float(tasa_cuota) * 100, 6)
+                    except Exception:
+                        continue
+
+                    found_tax_ids = models.execute_kw(
+                        client.odoo_database,
+                        uid,
+                        client.odoo_password,
+                        "account.tax",
+                        "search",
+                        [[
+                            ["type_tax_use", "=", "purchase"],
+                            ["amount_type", "=", "percent"],
+                            ["amount", "=", tax_amount],
+                            ["active", "=", True],
+                        ]],
+                        {"limit": 1},
+                    )
+
+                    if found_tax_ids:
+                        tax_ids.append(found_tax_ids[0])
+
+                return tax_ids
+
             for concept in concepts:
-                invoice_lines.append((0, 0, {
+                tax_ids = find_purchase_tax_ids(concept)
+
+                line_vals = {
                     "name": concept.get("descripcion") or f"CFDI {xml_document.uuid}",
                     "quantity": float(concept.get("cantidad") or 1.0),
                     "price_unit": float(concept.get("valor_unitario") or concept.get("importe") or 0.0),
                     "account_id": account_ids[0],
-                }))
+                }
+
+                if tax_ids:
+                    line_vals["tax_ids"] = [(6, 0, tax_ids)]
+
+                invoice_lines.append((0, 0, line_vals))
 
             if not invoice_lines:
                 invoice_lines.append((0, 0, {
