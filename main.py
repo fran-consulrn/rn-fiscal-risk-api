@@ -10,6 +10,7 @@ from odoo_saas import router as odoo_saas_router
 import csv
 import io
 import xmlrpc.client
+import json
 from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
@@ -22,6 +23,10 @@ with engine.begin() as conn:
     conn.execute(text(
         "DROP INDEX IF EXISTS ix_rn_fiscal_xml_documents_uuid"
     ))
+    conn.execute(text(
+        "ALTER TABLE rn_fiscal_xml_documents "
+        "ADD COLUMN IF NOT EXISTS concepts_json TEXT"
+    ))    
     
 app = FastAPI(
     title="RN Fiscal Risk API",
@@ -233,6 +238,23 @@ async def upload_xml(
 
     uuid = timbre.attrib.get("UUID") if timbre is not None else None
 
+    conceptos = root.findall(".//cfdi:Concepto", namespaces)
+    concepts = []
+
+    for concepto in conceptos:
+        concepts.append({
+            "clave_prod_serv": concepto.attrib.get("ClaveProdServ"),
+            "cantidad": concepto.attrib.get("Cantidad"),
+            "clave_unidad": concepto.attrib.get("ClaveUnidad"),
+            "unidad": concepto.attrib.get("Unidad"),
+            "descripcion": concepto.attrib.get("Descripcion"),
+            "valor_unitario": concepto.attrib.get("ValorUnitario"),
+            "importe": concepto.attrib.get("Importe"),
+            "objeto_imp": concepto.attrib.get("ObjetoImp"),
+        })
+
+    concepts_json = json.dumps(concepts, ensure_ascii=False)
+
     if not uuid:
         return {
             "success": False,
@@ -298,6 +320,7 @@ async def upload_xml(
         subtotal=subtotal,
         total=total,
         currency=currency,
+        concepts_json=concepts_json,
         status="received",
         message="XML received and parsed successfully.",
     )
@@ -494,6 +517,25 @@ def send_xml_to_odoo(
                 }
 
             bill_ref = f"{xml_document.serie or ''}-{xml_document.folio or ''}-{xml_document.uuid}"
+
+            concepts = json.loads(xml_document.concepts_json or "[]")
+            invoice_lines = []
+
+            for concept in concepts:
+                invoice_lines.append((0, 0, {
+                    "name": concept.get("descripcion") or f"CFDI {xml_document.uuid}",
+                    "quantity": float(concept.get("cantidad") or 1.0),
+                    "price_unit": float(concept.get("valor_unitario") or concept.get("importe") or 0.0),
+                    "account_id": account_ids[0],
+                }))
+
+            if not invoice_lines:
+                invoice_lines.append((0, 0, {
+                    "name": f"CFDI {xml_document.uuid}",
+                    "quantity": 1.0,
+                    "price_unit": float(xml_document.subtotal or xml_document.total or 0.0),
+                    "account_id": account_ids[0],
+                }))
 
             move_vals = {
                 "move_type": "in_invoice",

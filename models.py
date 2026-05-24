@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Text
 
 from database import Base
 
@@ -79,6 +79,7 @@ class RNFiscalXMLDocument(Base):
     subtotal = Column(String, nullable=True)
     total = Column(String, nullable=True)
     currency = Column(String, nullable=True)
+    concepts_json = Column(Text, nullable=True)
 
     status = Column(String, default="received")
     message = Column(String, nullable=True)
