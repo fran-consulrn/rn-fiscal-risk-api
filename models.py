@@ -62,7 +62,7 @@ class RNFiscalXMLDocument(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     customer_id = Column(String, index=True, nullable=False)
-    uuid = Column(String, unique=True, index=True, nullable=False)
+    uuid = Column(String, index=True, nullable=False)
 
     filename = Column(String, nullable=True)
 

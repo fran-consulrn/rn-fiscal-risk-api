@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from database import Base, engine, SessionLocal
 from models import FiscalRisk, RNFiscalClient, RNFiscalXMLDocument
@@ -12,6 +13,12 @@ import xmlrpc.client
 from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
+
+with engine.begin() as conn:
+    conn.execute(text(
+        "ALTER TABLE rn_fiscal_xml_documents "
+        "DROP CONSTRAINT IF EXISTS rn_fiscal_xml_documents_uuid_key"
+    ))
 
 app = FastAPI(
     title="RN Fiscal Risk API",
