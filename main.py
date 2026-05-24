@@ -474,20 +474,18 @@ def send_xml_to_odoo(
                         "company_type": "company",
                     }],
                 )
-
-            account_ids = models.execute_kw(
-                client.odoo_database,
-                uid,
-                client.odoo_password,
-                "account.account",
-                "search",
-                [[
-                    ["account_type", "=", "expense"],
-                    ["deprecated", "=", False],
-                ]],
-                {"limit": 1},
-            )
-
+                account_ids = models.execute_kw(
+                    client.odoo_database,
+                    uid,
+                    client.odoo_password,
+                    "account.account",
+                    "search",
+                    [[
+                        ["account_type", "=", "expense"],
+                    ]],
+                    {"limit": 1},
+                )
+                
             if not account_ids:
                 return {
                     "success": False,
