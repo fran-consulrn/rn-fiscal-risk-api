@@ -19,7 +19,10 @@ with engine.begin() as conn:
         "ALTER TABLE rn_fiscal_xml_documents "
         "DROP CONSTRAINT IF EXISTS rn_fiscal_xml_documents_uuid_key"
     ))
-
+    conn.execute(text(
+        "DROP INDEX IF EXISTS ix_rn_fiscal_xml_documents_uuid"
+    ))
+    
 app = FastAPI(
     title="RN Fiscal Risk API",
     version="1.0.0",
