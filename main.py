@@ -346,6 +346,8 @@ async def upload_xml(
         "subtotal": xml_document.subtotal,
         "total": xml_document.total,
         "currency": xml_document.currency,
+        "concepts_count": len(concepts),
+        "concepts": concepts,
         "message": xml_document.message,
     }
 
@@ -382,6 +384,7 @@ def get_xml_documents(
                 "subtotal": doc.subtotal,
                 "total": doc.total,
                 "currency": doc.currency,
+                "concepts_count": len(json.loads(doc.concepts_json or "[]")),
                 "status": doc.status,
                 "message": doc.message,
                 "created_at": doc.created_at,
@@ -542,14 +545,8 @@ def send_xml_to_odoo(
                 "partner_id": partner_id,
                 "ref": bill_ref,
                 "invoice_date": (xml_document.fecha or "")[:10] or False,
-                "invoice_line_ids": [(0, 0, {
-                    "name": f"CFDI {xml_document.uuid}",
-                    "quantity": 1.0,
-                    "price_unit": float(xml_document.subtotal or xml_document.total or 0.0),
-                    "account_id": account_ids[0],
-                })],
+                "invoice_line_ids": invoice_lines,
             }
-
             if client.odoo_company_id:
                 move_vals["company_id"] = client.odoo_company_id
 
