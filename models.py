@@ -80,6 +80,7 @@ class RNFiscalXMLDocument(Base):
     total = Column(String, nullable=True)
     currency = Column(String, nullable=True)
     concepts_json = Column(Text, nullable=True)
+    xml_content_base64 = Column(Text, nullable=True)
 
     status = Column(String, default="received")
     message = Column(String, nullable=True)
