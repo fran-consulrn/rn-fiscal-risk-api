@@ -454,12 +454,87 @@ def send_xml_to_odoo(
                 matched_bill = bill
                 break
 
-        if not matched_bill:
-            return {
-                "success": False,
-                "error": "Vendor bill not found in Odoo.",
-            }
+if not matched_bill:
+    partner_domain = [["vat", "=", xml_document.supplier_rfc]]
 
+    partner_ids = models.execute_kw(
+        client.odoo_database,
+        uid,
+        client.odoo_password,
+        "res.partner",
+        "search",
+        [partner_domain],
+        {"limit": 1}
+    )
+
+    if partner_ids:
+        partner_id = partner_ids[0]
+    else:
+        partner_id = models.execute_kw(
+            client.odoo_database,
+            uid,
+            client.odoo_password,
+            "res.partner",
+            "create",
+            [{
+                "name": xml_document.supplier_name or xml_document.supplier_rfc or "Proveedor CFDI",
+                "vat": xml_document.supplier_rfc or False,
+                "company_type": "company",
+            }]
+        )
+
+    account_ids = models.execute_kw(
+        client.odoo_database,
+        uid,
+        client.odoo_password,
+        "account.account",
+        "search",
+        [[
+            ["account_type", "=", "expense"],
+            ["deprecated", "=", False],
+        ]],
+        {"limit": 1}
+    )
+
+    if not account_ids:
+        return {
+            "success": False,
+            "error": "No expense account found in Odoo.",
+        }
+
+    bill_ref = f"{xml_document.serie or ''}-{xml_document.folio or ''}-{xml_document.uuid}"
+
+    move_vals = {
+        "move_type": "in_invoice",
+        "partner_id": partner_id,
+        "ref": bill_ref,
+        "invoice_date": (xml_document.fecha or "")[:10] or False,
+        "invoice_line_ids": [(0, 0, {
+            "name": f"CFDI {xml_document.uuid}",
+            "quantity": 1.0,
+            "price_unit": float(xml_document.subtotal or xml_document.total or 0.0),
+            "account_id": account_ids[0],
+        })],
+    }
+
+    if client.odoo_company_id:
+        move_vals["company_id"] = client.odoo_company_id
+
+    created_bill_id = models.execute_kw(
+        client.odoo_database,
+        uid,
+        client.odoo_password,
+        "account.move",
+        "create",
+        [move_vals]
+    )
+
+    matched_bill = {
+        "id": created_bill_id,
+        "name": "Draft Vendor Bill",
+        "ref": bill_ref,
+    }
+    
         body = (
             "<strong>✅ RN Fiscal Shield SaaS</strong><br/>"
             f"XML UUID detectado: {xml_document.uuid}<br/>"
