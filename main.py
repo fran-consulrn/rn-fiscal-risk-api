@@ -17,7 +17,6 @@ from datetime import datetime
 Base.metadata.create_all(bind=engine)
 
 with engine.begin() as conn:
-
     conn.execute(text(
         "ALTER TABLE rn_fiscal_xml_documents "
         "DROP CONSTRAINT IF EXISTS rn_fiscal_xml_documents_uuid_key"
@@ -33,7 +32,19 @@ with engine.begin() as conn:
         "ALTER TABLE rn_fiscal_xml_documents "
         "ADD COLUMN IF NOT EXISTS xml_content_base64 TEXT"
     ))
-    
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS uuid_sat VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS payment_method VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS payment_form VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS document_type VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS exchange_rate VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS place_of_issue VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS cfdi_usage VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS issuer_tax_regime VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS receiver_tax_regime VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS discount VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS tax_transferred_total VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS tax_withheld_total VARCHAR"))
+
 app = FastAPI(
     title="RN Fiscal Risk API",
     version="1.0.0",
