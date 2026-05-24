@@ -608,7 +608,7 @@ def send_xml_to_odoo(
         }
 
         if attachment_id:
-            message_kwargs["attachment_ids"] = [(4, attachment_id)]
+            message_kwargs["attachment_ids"] = [attachment_id]
 
         message_id = models.execute_kw(
             client.odoo_database,
