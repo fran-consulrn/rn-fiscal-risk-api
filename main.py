@@ -11,11 +11,13 @@ import csv
 import io
 import xmlrpc.client
 import json
+import base64
 from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
 
 with engine.begin() as conn:
+
     conn.execute(text(
         "ALTER TABLE rn_fiscal_xml_documents "
         "DROP CONSTRAINT IF EXISTS rn_fiscal_xml_documents_uuid_key"
@@ -26,7 +28,11 @@ with engine.begin() as conn:
     conn.execute(text(
         "ALTER TABLE rn_fiscal_xml_documents "
         "ADD COLUMN IF NOT EXISTS concepts_json TEXT"
-    ))    
+    ))
+    conn.execute(text(
+        "ALTER TABLE rn_fiscal_xml_documents "
+        "ADD COLUMN IF NOT EXISTS xml_content_base64 TEXT"
+    ))
     
 app = FastAPI(
     title="RN Fiscal Risk API",
@@ -218,6 +224,8 @@ async def upload_xml(
 
     content = await file.read()
 
+    xml_content_base64 = base64.b64encode(content).decode("utf-8")
+
     try:
         root = ET.fromstring(content)
     except Exception as e:
@@ -321,6 +329,7 @@ async def upload_xml(
         total=total,
         currency=currency,
         concepts_json=concepts_json,
+        xml_content_base64=xml_content_base64,
         status="received",
         message="XML received and parsed successfully.",
     )
