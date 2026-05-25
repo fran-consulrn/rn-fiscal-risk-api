@@ -133,6 +133,17 @@ def root():
 def health():
     return {
         "status": "ok",
+        "build": "sat-sync-router-debug",
+    }
+
+
+@app.get("/debug/routes")
+def debug_routes():
+    return {
+        "routes": [
+            route.path
+            for route in app.routes
+        ],
     }
 
 
@@ -398,6 +409,7 @@ async def upload_xml(
     }
 
 app.include_router(odoo_saas_router)
+app.include_router(sat_sync_router)
 
 @app.get("/api/v1/xml/documents/{customer_id}")
 def get_xml_documents(
