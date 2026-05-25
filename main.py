@@ -137,18 +137,9 @@ def root():
 def health():
     return {
         "status": "ok",
-        "build": "sat-sync-router-debug",
     }
 
 
-@app.get("/debug/routes")
-def debug_routes():
-    return {
-        "routes": [
-            route.path
-            for route in app.routes
-        ],
-    }
 
 
 
