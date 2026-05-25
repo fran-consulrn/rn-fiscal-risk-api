@@ -46,6 +46,11 @@ class RNFiscalClient(Base):
     onboarding_status = Column(String, default="pending")
     onboarding_message = Column(String, nullable=True)
 
+    onefacture_folder_path = Column(String, nullable=True)
+    onefacture_account_status = Column(String, default="pending")
+    activation_notes = Column(Text, nullable=True)
+    last_sync_at = Column(DateTime, nullable=True)
+
     source = Column(String, default="odoo_module")
 
     created_at = Column(DateTime, default=datetime.utcnow)

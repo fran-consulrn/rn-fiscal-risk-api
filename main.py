@@ -45,6 +45,10 @@ with engine.begin() as conn:
     conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS discount VARCHAR"))
     conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS tax_transferred_total VARCHAR"))
     conn.execute(text("ALTER TABLE rn_fiscal_xml_documents ADD COLUMN IF NOT EXISTS tax_withheld_total VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_clients ADD COLUMN IF NOT EXISTS onefacture_folder_path VARCHAR"))
+    conn.execute(text("ALTER TABLE rn_fiscal_clients ADD COLUMN IF NOT EXISTS onefacture_account_status VARCHAR DEFAULT 'pending'"))
+    conn.execute(text("ALTER TABLE rn_fiscal_clients ADD COLUMN IF NOT EXISTS activation_notes TEXT"))
+    conn.execute(text("ALTER TABLE rn_fiscal_clients ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMP"))
 
 app = FastAPI(
     title="RN Fiscal Risk API",
@@ -147,6 +151,7 @@ def debug_routes():
     }
 
 
+
 class OnboardingRequest(BaseModel):
     company_name: str | None = None
     odoo_company_id: int | None = None
@@ -160,6 +165,12 @@ class OnboardingRequest(BaseModel):
     alert_email: str | None = None
     auto_validate_risk: bool | None = False
     source: str | None = "odoo_module"
+
+
+class ActivateClientRequest(BaseModel):
+    customer_id: str
+    onefacture_folder_path: str | None = None
+    activation_notes: str | None = None
 
 
 @app.post("/api/v1/onboarding/register")
@@ -236,6 +247,116 @@ def register_onboarding(
         "customer_id": client.customer_id,
         "message": client.onboarding_message,
     }
+
+@app.get("/api/v1/admin/clients")
+def admin_get_clients(
+    db: Session = Depends(get_db),
+):
+    clients = (
+        db.query(RNFiscalClient)
+        .order_by(RNFiscalClient.created_at.desc())
+        .all()
+    )
+
+    return {
+        "success": True,
+        "count": len(clients),
+        "clients": [
+            {
+                "id": client.id,
+                "customer_id": client.customer_id,
+                "company_name": client.company_name,
+                "company_rfc": client.company_rfc,
+                "odoo_url": client.odoo_url,
+                "odoo_database": client.odoo_database,
+                "odoo_company_id": client.odoo_company_id,
+                "odoo_company_name": client.odoo_company_name,
+                "alert_email": client.alert_email,
+                "onboarding_status": client.onboarding_status,
+                "onboarding_message": client.onboarding_message,
+                "onefacture_folder_path": client.onefacture_folder_path,
+                "onefacture_account_status": client.onefacture_account_status,
+                "activation_notes": client.activation_notes,
+                "last_sync_at": client.last_sync_at,
+                "created_at": client.created_at,
+                "updated_at": client.updated_at,
+            }
+            for client in clients
+        ],
+    }
+
+
+@app.get("/api/v1/admin/pending-clients")
+def admin_get_pending_clients(
+    db: Session = Depends(get_db),
+):
+    clients = (
+        db.query(RNFiscalClient)
+        .filter(RNFiscalClient.onboarding_status != "active")
+        .order_by(RNFiscalClient.created_at.desc())
+        .all()
+    )
+
+    return {
+        "success": True,
+        "count": len(clients),
+        "clients": [
+            {
+                "id": client.id,
+                "customer_id": client.customer_id,
+                "company_name": client.company_name,
+                "company_rfc": client.company_rfc,
+                "odoo_url": client.odoo_url,
+                "odoo_database": client.odoo_database,
+                "alert_email": client.alert_email,
+                "onboarding_status": client.onboarding_status,
+                "onboarding_message": client.onboarding_message,
+                "onefacture_folder_path": client.onefacture_folder_path,
+                "onefacture_account_status": client.onefacture_account_status,
+                "activation_notes": client.activation_notes,
+                "created_at": client.created_at,
+            }
+            for client in clients
+        ],
+    }
+
+
+@app.post("/api/v1/admin/activate-client")
+def admin_activate_client(
+    data: ActivateClientRequest,
+    db: Session = Depends(get_db),
+):
+    client = (
+        db.query(RNFiscalClient)
+        .filter(RNFiscalClient.customer_id == data.customer_id)
+        .first()
+    )
+
+    if not client:
+        return {
+            "success": False,
+            "error": "Client not found.",
+        }
+
+    client.onboarding_status = "active"
+    client.onefacture_account_status = "active"
+    client.onefacture_folder_path = data.onefacture_folder_path
+    client.activation_notes = data.activation_notes
+    client.onboarding_message = "Cliente activado correctamente. Sincronización habilitada."
+
+    db.commit()
+    db.refresh(client)
+
+    return {
+        "success": True,
+        "customer_id": client.customer_id,
+        "company_rfc": client.company_rfc,
+        "onboarding_status": client.onboarding_status,
+        "onefacture_account_status": client.onefacture_account_status,
+        "onefacture_folder_path": client.onefacture_folder_path,
+        "message": client.onboarding_message,
+    }
+
 
 @app.post("/api/v1/xml/upload")
 async def upload_xml(
