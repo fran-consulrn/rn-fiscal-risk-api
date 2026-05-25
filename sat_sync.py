@@ -1,3 +1,14 @@
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal
+from app.models.client import Client
+
+
+class ManualSyncRequest(BaseModel):
+    customer_id: int
+    limit: int = 25
+
 @router.get("/api/v1/sat/import-first-local-xml-to-odoo")
 def import_first_local_xml_to_odoo():
     def _import_single_xml_to_odoo(models, uid, selected_xml):
@@ -295,3 +306,46 @@ def auto_sync_local_xmls(limit: int = 25):
             "success": False,
             "error": str(e),
         }
+
+
+@router.post("/api/v1/sat/manual-sync")
+def manual_sync_from_odoo(data: ManualSyncRequest):
+    db: Session = SessionLocal()
+
+    try:
+        client = (
+            db.query(Client)
+            .filter(Client.id == data.customer_id)
+            .first()
+        )
+
+        if not client:
+            return {
+                "success": False,
+                "error": "Client not found",
+            }
+
+        if not client.subscription_active:
+            return {
+                "success": False,
+                "error": "Subscription inactive",
+            }
+
+        result = auto_sync_local_xmls(limit=data.limit)
+
+        result.update({
+            "customer_id": client.id,
+            "company_rfc": client.company_rfc,
+            "subscription_plan": client.subscription_plan,
+        })
+
+        return result
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+    finally:
+        db.close()
