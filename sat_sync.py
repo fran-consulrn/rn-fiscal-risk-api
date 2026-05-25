@@ -1,12 +1,12 @@
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
-from app.models.client import Client
+from database import SessionLocal
+from models import RNFiscalClient
 
 
 class ManualSyncRequest(BaseModel):
-    customer_id: int
+    customer_id: str
     limit: int = 25
 
 @router.get("/api/v1/sat/import-first-local-xml-to-odoo")
@@ -314,8 +314,8 @@ def manual_sync_from_odoo(data: ManualSyncRequest):
 
     try:
         client = (
-            db.query(Client)
-            .filter(Client.id == data.customer_id)
+            db.query(RNFiscalClient)
+            .filter(RNFiscalClient.customer_id == data.customer_id)
             .first()
         )
 
@@ -325,7 +325,13 @@ def manual_sync_from_odoo(data: ManualSyncRequest):
                 "error": "Client not found",
             }
 
-        if not client.subscription_active:
+        onboarding_status = getattr(
+            client,
+            "onboarding_status",
+            "active",
+        )
+
+        if onboarding_status not in ("active", "pending"):
             return {
                 "success": False,
                 "error": "Subscription inactive",
@@ -334,9 +340,13 @@ def manual_sync_from_odoo(data: ManualSyncRequest):
         result = auto_sync_local_xmls(limit=data.limit)
 
         result.update({
-            "customer_id": client.id,
+            "customer_id": client.customer_id,
             "company_rfc": client.company_rfc,
-            "subscription_plan": client.subscription_plan,
+            "subscription_plan": getattr(
+                client,
+                "subscription_plan",
+                "starter",
+            ),
         })
 
         return result
