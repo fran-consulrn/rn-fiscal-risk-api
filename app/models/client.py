@@ -22,4 +22,11 @@ class Client(Base):
 
     sync_enabled = Column(Boolean, default=True)
 
+    subscription_active = Column(Boolean, default=True)
+    subscription_plan = Column(String, default="starter")
+    license_key = Column(String, nullable=True)
+
+    database = Column(String, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
