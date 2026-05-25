@@ -6,6 +6,7 @@ from sqlalchemy import text
 from database import Base, engine, SessionLocal
 from models import FiscalRisk, RNFiscalClient, RNFiscalXMLDocument
 from odoo_saas import router as odoo_saas_router
+from sat_sync import router as sat_sync_router
 
 import csv
 import io
