@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from mailer import send_new_onboarding_email
 
 from database import Base, engine, SessionLocal
 from models import FiscalRisk, RNFiscalClient, RNFiscalXMLDocument
@@ -232,6 +233,7 @@ def register_onboarding(
     db.add(client)
     db.commit()
     db.refresh(client)
+    send_new_onboarding_email(client)
 
     return {
         "status": client.onboarding_status,
