@@ -202,6 +202,11 @@ def register_onboarding(
         db.commit()
         db.refresh(existing)
 
+        try:
+            send_new_onboarding_email(existing)
+        except Exception:
+            pass
+
         return {
             "status": existing.onboarding_status,
             "customer_id": existing.customer_id,
@@ -233,7 +238,11 @@ def register_onboarding(
     db.add(client)
     db.commit()
     db.refresh(client)
-    send_new_onboarding_email(client)
+
+    try:
+        send_new_onboarding_email(client)
+    except Exception:
+        pass
 
     return {
         "status": client.onboarding_status,
@@ -467,14 +476,33 @@ async def upload_xml(
 
     supplier_rfc = emisor.attrib.get("Rfc") if emisor is not None else None
     supplier_name = emisor.attrib.get("Nombre") if emisor is not None else None
+    issuer_tax_regime = emisor.attrib.get("RegimenFiscal") if emisor is not None else None
+
     receiver_rfc = receptor.attrib.get("Rfc") if receptor is not None else None
     receiver_name = receptor.attrib.get("Nombre") if receptor is not None else None
+    receiver_tax_regime = receptor.attrib.get("RegimenFiscalReceptor") if receptor is not None else None
+    cfdi_usage = receptor.attrib.get("UsoCFDI") if receptor is not None else None
+
     folio = comprobante.attrib.get("Folio")
     serie = comprobante.attrib.get("Serie")
     fecha = comprobante.attrib.get("Fecha")
     subtotal = comprobante.attrib.get("SubTotal")
+    discount = comprobante.attrib.get("Descuento")
     total = comprobante.attrib.get("Total")
     currency = comprobante.attrib.get("Moneda")
+    document_type = comprobante.attrib.get("TipoDeComprobante")
+    payment_method = comprobante.attrib.get("MetodoPago")
+    payment_form = comprobante.attrib.get("FormaPago")
+    exchange_rate = comprobante.attrib.get("TipoCambio")
+    place_of_issue = comprobante.attrib.get("LugarExpedicion")
+
+    impuestos_node = root.find("cfdi:Impuestos", namespaces)
+    tax_transferred_total = None
+    tax_withheld_total = None
+
+    if impuestos_node is not None:
+        tax_transferred_total = impuestos_node.attrib.get("TotalImpuestosTrasladados")
+        tax_withheld_total = impuestos_node.attrib.get("TotalImpuestosRetenidos")
 
     xml_document = RNFiscalXMLDocument(
         customer_id=customer_id,
@@ -487,9 +515,21 @@ async def upload_xml(
         folio=folio,
         serie=serie,
         fecha=fecha,
+        uuid_sat=uuid,
+        payment_method=payment_method,
+        payment_form=payment_form,
+        document_type=document_type,
+        exchange_rate=exchange_rate,
+        place_of_issue=place_of_issue,
+        cfdi_usage=cfdi_usage,
+        issuer_tax_regime=issuer_tax_regime,
+        receiver_tax_regime=receiver_tax_regime,
         subtotal=subtotal,
+        discount=discount,
         total=total,
         currency=currency,
+        tax_transferred_total=tax_transferred_total,
+        tax_withheld_total=tax_withheld_total,
         concepts_json=concepts_json,
         xml_content_base64=xml_content_base64,
         status="received",
@@ -761,12 +801,38 @@ def send_xml_to_odoo(
                     "account_id": account_ids[0],
                 }))
 
+            move_type = "in_refund" if xml_document.document_type == "E" else "in_invoice"
+
             move_vals = {
-                "move_type": "in_invoice",
+                "move_type": move_type,
                 "partner_id": partner_id,
                 "ref": bill_ref,
                 "invoice_date": (xml_document.fecha or "")[:10] or False,
                 "invoice_line_ids": invoice_lines,
+                "rn_cfdi_uuid": xml_document.uuid_sat or xml_document.uuid,
+                "rn_cfdi_serie": xml_document.serie,
+                "rn_cfdi_folio": xml_document.folio,
+                "rn_cfdi_fecha": xml_document.fecha,
+                "rn_cfdi_document_type": xml_document.document_type,
+                "rn_cfdi_payment_method": xml_document.payment_method,
+                "rn_cfdi_payment_form": xml_document.payment_form,
+                "rn_cfdi_currency": xml_document.currency,
+                "rn_cfdi_exchange_rate": xml_document.exchange_rate,
+                "rn_cfdi_place_of_issue": xml_document.place_of_issue,
+                "rn_cfdi_usage": xml_document.cfdi_usage,
+                "rn_cfdi_issuer_rfc": xml_document.supplier_rfc,
+                "rn_cfdi_issuer_name": xml_document.supplier_name,
+                "rn_cfdi_issuer_tax_regime": xml_document.issuer_tax_regime,
+                "rn_cfdi_receiver_rfc": xml_document.receiver_rfc,
+                "rn_cfdi_receiver_name": xml_document.receiver_name,
+                "rn_cfdi_receiver_tax_regime": xml_document.receiver_tax_regime,
+                "rn_cfdi_subtotal": xml_document.subtotal,
+                "rn_cfdi_discount": xml_document.discount,
+                "rn_cfdi_tax_transferred_total": xml_document.tax_transferred_total,
+                "rn_cfdi_tax_withheld_total": xml_document.tax_withheld_total,
+                "rn_cfdi_total": xml_document.total,
+                "rn_fiscal_shield_status": "synced",
+                "rn_fiscal_shield_message": "XML synced from RN Fiscal Shield.",
             }
             if client.odoo_company_id:
                 move_vals["company_id"] = client.odoo_company_id
