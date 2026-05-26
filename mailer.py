@@ -1,59 +1,93 @@
 import os
-import smtplib
+import requests
 
-from email.mime.text import MIMEText
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
-
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-ONBOARDING_TO_EMAIL = os.environ.get(
+ONBOARDING_TO_EMAIL = os.getenv(
     "ONBOARDING_TO_EMAIL",
     "hola@consultorarn.com",
 )
 
+FROM_EMAIL = os.getenv(
+    "FROM_EMAIL",
+    "onboarding@resend.dev",
+)
+
 
 def send_new_onboarding_email(client):
-    if not SMTP_USER or not SMTP_PASSWORD:
+
+    if not RESEND_API_KEY:
+        print("Missing RESEND_API_KEY")
         return False
 
-    subject = "Nuevo onboarding RN Fiscal Shield"
+    subject = (
+        f"🚀 Nuevo onboarding RN Fiscal Shield - "
+        f"{client.company_rfc}"
+    )
 
-    body = f"""
-Nuevo cliente pendiente de activación.
+    html = f"""
+    <h2>Nuevo cliente pendiente de activación</h2>
 
-Cliente: {client.company_name or "Sin nombre"}
-RFC: {client.company_rfc}
-Customer ID: {client.customer_id}
+    <p>
+        <strong>Cliente:</strong>
+        {client.company_name or "Sin nombre"}
+    </p>
 
-Odoo URL:
-{client.odoo_url}
+    <p>
+        <strong>RFC:</strong>
+        {client.company_rfc}
+    </p>
 
-Base de datos:
-{client.odoo_database}
+    <p>
+        <strong>Customer ID:</strong>
+        {client.customer_id}
+    </p>
 
-Estatus:
-{client.onboarding_status}
+    <hr>
 
-Acción requerida:
-1. Crear/configurar cuenta en OneFacture.
-2. Ligar carpeta del RFC.
-3. Activar cliente desde /api/v1/admin/activate-client.
-"""
+    <p>
+        <strong>Odoo URL:</strong>
+        {client.odoo_url}
+    </p>
 
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = SMTP_USER
-    msg["To"] = ONBOARDING_TO_EMAIL
+    <p>
+        <strong>Database:</strong>
+        {client.odoo_database}
+    </p>
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(
-            SMTP_USER,
-            [ONBOARDING_TO_EMAIL],
-            msg.as_string(),
-        )
+    <p>
+        <strong>Usuario:</strong>
+        {client.odoo_login}
+    </p>
 
-    return True
+    <hr>
+
+    <h3>Acción requerida:</h3>
+
+    <ul>
+        <li>Crear/configurar cuenta OneFacture</li>
+        <li>Ligar carpeta del RFC</li>
+        <li>Activar cliente desde API</li>
+        <li>Validar conexión Odoo</li>
+    </ul>
+    """
+
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": FROM_EMAIL,
+            "to": [ONBOARDING_TO_EMAIL],
+            "subject": subject,
+            "html": html,
+        },
+        timeout=15,
+    )
+
+    print(response.status_code)
+    print(response.text)
+
+    return response.status_code in (200, 201)
